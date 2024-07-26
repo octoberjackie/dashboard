@@ -16,7 +16,7 @@ pnpm install
 
 ```sh
 pnpm apollo-codegen
-```
+```  
 
 ### Starting local dev server.
 
