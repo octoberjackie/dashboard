@@ -34,14 +34,23 @@ export type EngineInstance = {
 };
 
 // Not checking for null token because the token is required the tanstack useQuery hook
-const getEngineRequestHeaders = (token: string | null): HeadersInit => ({
-  "Content-Type": "application/json",
-  // This is required to skip the browser warning when using ngrok
-  // else, Engine -> Explorer doesn't work
-  // more info: https://ngrok.com/abuse
-  "ngrok-skip-browser-warning": "true",
-  Authorization: `Bearer ${token}`,
-});
+const getEngineRequestHeaders = (token: string | null): HeadersInit => {
+  const basicHeaders = {
+    "Content-Type": "application/json",
+    // This is required to skip the browser warning when using ngrok
+    // else, Engine -> Explorer doesn't work
+    // more info: https://ngrok.com/abuse
+    "ngrok-skip-browser-warning": "true",
+  };
+  if (!token) {
+    return basicHeaders;
+  }
+
+  return {
+    ...basicHeaders,
+    Authorization: `Bearer ${token}`,
+  };
+};
 
 export function useEngineInstances() {
   const { user, isLoggedIn } = useLoggedInUser();
@@ -52,12 +61,9 @@ export function useEngineInstances() {
       const res = await fetch(`${THIRDWEB_API_HOST}/v1/engine`, {
         method: "GET",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       if (!res.ok) {
-        throw new Error(`Unexpected status ${res.status}`);
+        throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
       }
 
       const json = await res.json();
@@ -121,9 +127,11 @@ export function useEngineSystemHealth(instanceUrl: string) {
   return useQuery(
     engineKeys.health(instanceUrl),
     async () => {
-      const res = await fetch(`${instanceUrl}system/health`);
+      const res = await fetch(`${instanceUrl}system/health`, {
+        headers: getEngineRequestHeaders(null),
+      });
       if (!res.ok) {
-        throw new Error(`Unexpected status ${res.status}`);
+        throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
       }
       const json = (await res.json()) as EngineSystemHealth;
       return json;
@@ -139,7 +147,7 @@ export function useEngineLatestVersion() {
       credentials: "include",
     });
     if (!res.ok) {
-      throw new Error(`Unexpected status ${res.status}`);
+      throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
     }
     const json = await res.json();
     return json.data.version as string;
@@ -164,12 +172,115 @@ export function useEngineUpdateVersion() {
         engineId: input.engineId,
       }),
     });
-    if (!res.ok) {
-      throw new Error(`Unexpected status ${res.status}`);
-    }
-    // The response body is unused if 2xx.
+    // we never use the response body
     res.body?.cancel();
+    if (!res.ok) {
+      throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
+    }
   });
+}
+
+export function useEngineRemoveFromDashboard() {
+  const { user } = useLoggedInUser();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    async (instanceId: string) => {
+      invariant(instanceId, "instance is required");
+
+      const res = await fetch(`${THIRDWEB_API_HOST}/v1/engine/${instanceId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      // we never use the response body
+      res.body?.cancel();
+      if (!res.ok) {
+        throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
+      }
+    },
+    {
+      onSuccess: () => {
+        return queryClient.invalidateQueries(
+          engineKeys.instances(user?.address as string),
+        );
+      },
+    },
+  );
+}
+
+export interface RemoveCloudHostedInput {
+  instanceId: string;
+  reason: "USING_SELF_HOSTED" | "TOO_EXPENSIVE" | "MISSING_FEATURES" | "OTHER";
+  feedback: string;
+}
+
+export function useEngineRemoveCloudHosted() {
+  const { user } = useLoggedInUser();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    async ({ instanceId, reason, feedback }: RemoveCloudHostedInput) => {
+      const res = await fetch(
+        `${THIRDWEB_API_HOST}/v1/engine/${instanceId}/remove-cloud-hosted`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reason, feedback }),
+        },
+      );
+      // we never use the response body
+      res.body?.cancel();
+      if (!res.ok) {
+        throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
+      }
+    },
+    {
+      onSuccess: () => {
+        return queryClient.invalidateQueries(
+          engineKeys.instances(user?.address as string),
+        );
+      },
+    },
+  );
+}
+
+export interface EditEngineInstanceInput {
+  instanceId: string;
+  name: string;
+  url: string;
+}
+
+export function useEngineEditInstance() {
+  const { user } = useLoggedInUser();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    async ({ instanceId, name, url }: EditEngineInstanceInput) => {
+      const res = await fetch(`${THIRDWEB_API_HOST}/v1/engine/${instanceId}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, url }),
+      });
+      // we never use the response body
+      res.body?.cancel();
+      if (!res.ok) {
+        throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
+      }
+    },
+    {
+      onSuccess: () => {
+        return queryClient.invalidateQueries(
+          engineKeys.instances(user?.address as string),
+        );
+      },
+    },
+  );
 }
 
 export type Transaction = {
@@ -1147,6 +1258,10 @@ export interface EngineContractSubscription {
   contractAddress: string;
   webhook?: EngineWebhook;
   createdAt: Date;
+  processEventLogs: boolean;
+  filterEvents: string[];
+  processTransactionReceipts: boolean;
+  filterFunctions: string[];
 
   // Dummy field for the table.
   lastIndexedBlock: string;
@@ -1174,7 +1289,11 @@ export function useEngineContractSubscription(instance: string) {
 export interface AddContractSubscriptionInput {
   chain: string;
   contractAddress: string;
-  webhookUrl?: string;
+  webhookUrl: string;
+  processEventLogs: boolean;
+  filterEvents: string[];
+  processTransactionReceipts: boolean;
+  filterFunctions: string[];
 }
 
 export function useEngineAddContractSubscription(instance: string) {
@@ -1267,6 +1386,42 @@ export function useEngineSubscriptionsLastBlock(
     {
       enabled: !!instanceUrl && !!token,
       refetchInterval: autoUpdate ? 5_000 : false,
+    },
+  );
+}
+
+export interface EngineResourceMetrics {
+  error: string;
+  data: {
+    cpu: number;
+    memory: number;
+  };
+}
+
+export function useEngineResourceMetrics(engineId: string) {
+  const [enabled, setEnabled] = useState(true);
+
+  return useQuery(
+    engineKeys.metrics(engineId),
+    async () => {
+      const res = await fetch(
+        `${THIRDWEB_API_HOST}/v1/engine/${engineId}/metrics`,
+        {
+          method: "GET",
+          credentials: "include",
+        },
+      );
+      if (!res.ok) {
+        setEnabled(false);
+        throw new Error(`Unexpected status ${res.status}: ${await res.text()}`);
+      }
+      const json = (await res.json()) as EngineResourceMetrics;
+      return json;
+    },
+    {
+      // Poll every 5s unless disabled.
+      enabled,
+      refetchInterval: 5_000,
     },
   );
 }

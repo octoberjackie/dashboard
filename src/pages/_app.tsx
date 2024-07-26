@@ -1,5 +1,5 @@
 import chakraTheme from "../theme";
-import { ChakraProvider } from "@chakra-ui/react";
+import { ChakraProvider, useColorMode } from "@chakra-ui/react";
 import { Global, css } from "@emotion/react";
 import type { DehydratedState } from "@tanstack/react-query";
 import { ProgressBar } from "components/shared/ProgressBar";
@@ -20,6 +20,9 @@ import type { ThirdwebNextPage } from "utils/types";
 import "../css/swagger-ui.css";
 import { AnnouncementBanner } from "components/notices/AnnouncementBanner";
 import { useBuildId } from "hooks/useBuildId";
+import "@/styles/globals.css";
+import { ThemeProvider } from "../@/components/theme-provider";
+import { useTheme } from "next-themes";
 
 const inter = interConstructor({
   subsets: ["latin"],
@@ -58,6 +61,8 @@ const ConsoleAppWrapper: React.FC<AppPropsWithLayout> = ({
   const router = useRouter();
   const { shouldReload } = useBuildId();
 
+  // legit use-case, will go away as part of app router rewrite (once finished)
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     const handleRouteChange = async () => {
       if (shouldReload()) {
@@ -72,6 +77,8 @@ const ConsoleAppWrapper: React.FC<AppPropsWithLayout> = ({
     };
   }, [router, shouldReload]);
 
+  // legit use-case
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     // Taken from StackOverflow. Trying to detect both Safari desktop and mobile.
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -87,6 +94,8 @@ const ConsoleAppWrapper: React.FC<AppPropsWithLayout> = ({
     }
   }, []);
 
+  // legit use-case
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     // Init PostHog Cloud (Used for surveys)
     posthogCloud.init(
@@ -133,6 +142,8 @@ const ConsoleAppWrapper: React.FC<AppPropsWithLayout> = ({
 
   // starts out with "none" page id
   const prevPageId = useRef<PageId>(PageId.None);
+  // legit use-case
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     // this catches the case where the the hook is called twice on the same page
     if (pageId === prevPageId.current) {
@@ -260,12 +271,40 @@ const ConsoleApp = memo(function ConsoleApp({
 
       <ChakraProvider theme={chakraThemeWithFonts}>
         <AnnouncementBanner />
-        {isFallback && Component.fallback
-          ? Component.fallback
-          : getLayout(<Component {...pageProps} />, pageProps)}
+        <TailwindTheme>
+          {isFallback && Component.fallback
+            ? Component.fallback
+            : getLayout(<Component {...pageProps} />, pageProps)}
+        </TailwindTheme>
       </ChakraProvider>
     </PlausibleProvider>
   );
 });
+
+function TailwindTheme(props: { children: React.ReactNode }) {
+  const { colorMode } = useColorMode();
+
+  return (
+    <ThemeProvider
+      attribute="class"
+      // this sets the initial theme
+      forcedTheme={colorMode === "light" ? "light" : "dark"}
+    >
+      {/* this keeps the theme in sync! */}
+      <SyncTheme currentTheme={colorMode === "light" ? "light" : "dark"} />
+      {props.children}
+    </ThemeProvider>
+  );
+}
+const SyncTheme: React.FC<{ currentTheme: "light" | "dark" }> = ({
+  currentTheme,
+}) => {
+  const { setTheme } = useTheme();
+  // eslint-disable-next-line no-restricted-syntax
+  useEffect(() => {
+    setTheme(currentTheme);
+  }, [currentTheme, setTheme]);
+  return null;
+};
 
 export default ConsoleAppWrapper;

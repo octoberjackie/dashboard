@@ -39,7 +39,7 @@ module.exports = {
     "import/no-default-export": "off",
     "import/no-useless-path-segments": "error",
     // react
-    "react/forbid-dom-props": ["error", { forbid: ["className", "style"] }],
+    "react/forbid-dom-props": ["error", { forbid: ["style"] }],
     "react/no-children-prop": "off",
     "react/prop-types": "off",
     // react-hooks
@@ -99,6 +99,14 @@ module.exports = {
     "inclusive-language/use-inclusive-words": "error",
     // turn off deprecated things?
     "react/react-in-jsx-scope": "off",
+    "no-restricted-syntax": [
+      "error",
+      {
+        selector: "CallExpression[callee.name='useEffect']",
+        message:
+          'Are you *sure* you need to use "useEffect" here? If you loading any async function prefer using "useQuery".',
+      },
+    ],
     "no-restricted-imports": [
       "error",
       {

@@ -19,7 +19,6 @@ import { DeployedContracts } from "components/contract-components/tables/deploye
 import { PublishedContracts } from "components/contract-components/tables/published-contracts";
 import { THIRDWEB_DOMAIN } from "constants/urls";
 import { PublisherSDKContext } from "contexts/custom-sdk-context";
-import { getAllExplorePublishers } from "data/explore";
 import { getAddress, isAddress } from "ethers/lib/utils";
 import { getDashboardChainRpc } from "lib/rpc";
 import { getThirdwebSDK } from "lib/sdk";
@@ -44,6 +43,9 @@ const UserPage: ThirdwebNextPage = (props: UserPageProps) => {
 
   const router = useRouter();
   // We do this so it doesn't break for users that haven't updated their CLI
+
+  // TODO: re-visit, do we still need to do this?
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     const previousPath = router.asPath.split("/")[2];
     if (
@@ -284,10 +286,6 @@ export const getStaticProps: GetStaticProps<UserPageProps> = async (ctx) => {
 export const getStaticPaths: GetStaticPaths = async () => {
   return {
     fallback: true,
-    paths: getAllExplorePublishers().map((profileAddress) => ({
-      params: {
-        profileAddress,
-      },
-    })),
+    paths: [],
   };
 };

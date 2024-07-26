@@ -24,9 +24,17 @@ import { CHAIN_ID_TO_GNOSIS } from "constants/mappings";
 import { useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { BiTransferAlt } from "react-icons/bi";
 import { FiInfo } from "react-icons/fi";
-import { Button, Card, Heading, LinkButton, Text } from "tw-components";
+import {
+  Button,
+  Card,
+  Heading,
+  LinkButton,
+  Text,
+  type ButtonProps,
+} from "tw-components";
 
-interface TransactionButtonProps extends Omit<ConnectWalletProps, "leftIcon"> {
+interface TransactionButtonProps
+  extends Omit<ConnectWalletProps & ButtonProps, "leftIcon"> {
   transactionCount: number;
   isLoading: boolean;
   isGasless?: boolean;
@@ -118,7 +126,7 @@ export const TransactionButton: React.FC<TransactionButtonProps> = ({
                   size === "sm" ? 3 : size === "lg" ? 6 : size === "xs" ? 2 : 4
                 }))`
           }
-          isDisabled={isChainDeprecated}
+          isDisabled={isChainDeprecated || restButtonProps.isDisabled}
         >
           {children}
           <Tooltip
@@ -218,6 +226,9 @@ const ExternalApprovalNotice: React.FC<ExternalApprovalNoticeProps> = ({
   const chainId = useChainId() || -1;
 
   const [showHint, setShowHint] = useState(false);
+
+  // legitimate usecase!
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     const t = setTimeout(() => {
       setShowHint(true);

@@ -97,6 +97,11 @@ const LazyContractSourcesPage = dynamic(() =>
     ({ ContractSourcesPage }) => ContractSourcesPage,
   ),
 );
+const LazyContractEditExtensionsPage = dynamic(() =>
+  import("../tabs/edit-extensions/page").then(
+    ({ ContractEditExtensionsPage }) => ContractEditExtensionsPage,
+  ),
+);
 
 export function useContractRouteConfig(
   contractAddress: string,
@@ -130,6 +135,15 @@ export function useContractRouteConfig(
       isDefault: true,
     },
     {
+      title: "Edit extensions",
+      path: "edit-extensions",
+      isEnabled: extensionDetectedState({
+        contractQuery,
+        feature: ["ModularCore"],
+      }),
+      component: LazyContractEditExtensionsPage,
+    },
+    {
       title: "Code Snippets",
       path: "code",
       component: LazyContractCodePage,
@@ -159,6 +173,7 @@ export function useContractRouteConfig(
       path: "payments",
       component: LazyContractPaymentsPage,
       isDefault: true,
+      isDeprecated: true,
     },
     {
       title: "NFTs",

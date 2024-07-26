@@ -23,7 +23,7 @@ import { StaticImageData } from "next/image";
 import { ChakraNextImage } from "components/Image";
 import { CustomConnectWallet } from "@3rdweb-sdk/react/components/connect-wallet";
 import { useChainId } from "@thirdweb-dev/react";
-import { OPSponsoredChains } from "pages/chainlist";
+import { OPSponsoredChains } from "../../constants/chains";
 
 enum Step {
   Keys = "keys",
@@ -178,6 +178,8 @@ export const OnboardingSteps: React.FC<OnboardingStepsProps> = ({
     });
   };
 
+  // TODO: find better way to track impressions
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (currentStep) {
       trackEvent({

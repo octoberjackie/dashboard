@@ -61,6 +61,7 @@ export const ContractSidebar: React.FC<ContractSidebarProps> = ({
                 title: r.title,
                 href: `/${r.path.replace("overview", "")}`,
                 isBeta: r.isBeta,
+                isDeprecated: r.isDeprecated,
                 onClick: () => {
                   openState.onClose();
                 },
@@ -81,6 +82,7 @@ export const ContractSidebar: React.FC<ContractSidebarProps> = ({
                 title: r.title,
                 href: `/${r.path}`,
                 isBeta: r.isBeta,
+                isDeprecated: r.isDeprecated,
                 extensionDetectedState: r.isEnabled,
                 onClick: () => {
                   openState.onClose();
@@ -100,6 +102,7 @@ type NavLinkSectionProps = {
     href: string;
     title: string;
     isBeta?: true;
+    isDeprecated?: true;
     extensionDetectedState?: ExtensionDetectedState;
     onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   }>;
@@ -136,6 +139,13 @@ const NavLinkSection: React.FC<NavLinkSectionProps> = ({
               </Badge>
             </Box>
           )}
+          {link.isDeprecated && (
+            <Box>
+              <Badge colorScheme="orange" variant="subtle">
+                Deprecated
+              </Badge>
+            </Box>
+          )}
         </Flex>
       ))}
     </Flex>
@@ -164,11 +174,11 @@ const DetailNavLink: ComponentWithChildren<DetailNavLinkProps> = ({
         : [];
     const [network, address, tab = ""] = [
       ...new Set(
-        ([query.chainSlug, ...combinedPaths] || []).filter((c) => c !== "evm"),
+        ([query.chain_id, ...combinedPaths] || []).filter((c) => c !== "evm"),
       ),
     ];
     return [`/${network}/${address}`, tab] as const;
-  }, [query.chainSlug, query.paths]);
+  }, [query.chain_id, query.paths]);
 
   if (extensionDetectedState === "disabled") {
     return null;

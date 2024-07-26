@@ -18,6 +18,7 @@ import {
   UseDisclosureReturn,
   useDisclosure,
 } from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper } from "@tanstack/react-table";
 import { shortenAddress } from "@thirdweb-dev/react";
 import { ChainIcon } from "components/icons/ChainIcon";
@@ -27,10 +28,11 @@ import { useTrack } from "hooks/analytics/useTrack";
 import { useAllChainsData } from "hooks/chains/allChains";
 import { useTxNotifications } from "hooks/useTxNotifications";
 import { thirdwebClient } from "lib/thirdweb-client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FiInfo, FiTrash } from "react-icons/fi";
 import { defineChain, eth_getBlockByNumber, getRpcClient } from "thirdweb";
 import { Button, Card, FormLabel, LinkButton, Text } from "tw-components";
+import { AddressCopyButton } from "../../../tw-components/AddressCopyButton";
 
 interface ContractSubscriptionTableProps {
   instanceUrl: string;
@@ -64,7 +66,7 @@ export const ContractSubscriptionTable: React.FC<
         return (
           <Flex align="center" gap={2}>
             <ChainIcon size={12} ipfsSrc={chain?.icon?.url} />
-            <Text>{chain.name}</Text>
+            <Text>{chain?.name ?? "N/A"}</Text>
           </Flex>
         );
       },
@@ -75,7 +77,14 @@ export const ContractSubscriptionTable: React.FC<
         const { chainId } = cell.row.original;
         const chain = chainIdToChainRecord[chainId];
         const explorer = chain?.explorers?.[0];
-
+        if (!explorer) {
+          return (
+            <AddressCopyButton
+              address={cell.getValue()}
+              title="Contract address"
+            />
+          );
+        }
         return (
           <LinkButton
             variant="ghost"
@@ -90,10 +99,87 @@ export const ContractSubscriptionTable: React.FC<
       },
     }),
     columnHelper.accessor("webhook", {
-      header: "Webhook",
+      header: "Webhook URL",
       cell: (cell) => {
         const webhook = cell.getValue();
-        return <Text>{webhook?.url}</Text>;
+        const url = webhook?.url ?? "";
+
+        return (
+          <Text maxW={200} whiteSpace="normal" noOfLines={3}>
+            {url}
+          </Text>
+        );
+      },
+    }),
+    columnHelper.accessor("processEventLogs", {
+      header: "Filters",
+      cell: (cell) => {
+        const {
+          processEventLogs,
+          filterEvents,
+          processTransactionReceipts,
+          filterFunctions,
+        } = cell.row.original;
+
+        return (
+          <Flex flexDirection="column">
+            {/* Show logs + events */}
+            {processEventLogs && (
+              <Flex gap={1}>
+                <Text>Logs:</Text>
+                {filterEvents.length === 0 ? (
+                  <Text>All</Text>
+                ) : (
+                  <Tooltip
+                    p={0}
+                    label={
+                      <Stack p={2} fontSize="small" color="white">
+                        {filterEvents.map((name) => (
+                          <Text key={name}>{name}</Text>
+                        ))}
+                      </Stack>
+                    }
+                    bgColor="backgroundCardHighlight"
+                    borderRadius="lg"
+                    shouldWrapChildren
+                  >
+                    <Text textDecoration="underline dotted">
+                      {filterEvents.length} events
+                    </Text>
+                  </Tooltip>
+                )}
+              </Flex>
+            )}
+
+            {/* Show receipts + functions */}
+            {processTransactionReceipts && (
+              <Flex gap={1}>
+                <Text>Receipts:</Text>
+                {filterFunctions.length === 0 ? (
+                  <Text>All</Text>
+                ) : (
+                  <Tooltip
+                    p={0}
+                    label={
+                      <Stack p={2} fontSize="small" color="white">
+                        {filterFunctions.map((name) => (
+                          <Text key={name}>{name}</Text>
+                        ))}
+                      </Stack>
+                    }
+                    bgColor="backgroundCardHighlight"
+                    borderRadius="lg"
+                    shouldWrapChildren
+                  >
+                    <Text textDecoration="underline dotted">
+                      {filterFunctions.length} functions
+                    </Text>
+                  </Tooltip>
+                )}
+              </Flex>
+            )}
+          </Flex>
+        );
       },
     }),
     columnHelper.accessor("lastIndexedBlock", {
@@ -150,36 +236,31 @@ const ChainLastBlockTimestamp = ({
   chainId: number;
   blockNumber: bigint;
 }) => {
-  const rpcRequest = getRpcClient({
-    client: thirdwebClient,
-    chain: defineChain(chainId),
-  });
-  const [lastBlockTimestamp, setLastBlockTimestamp] = useState<Date | null>(
-    null,
-  );
-
   // Get the block timestamp to display how delayed the last processed block is.
-  useEffect(() => {
-    (async () => {
-      try {
-        const block = await eth_getBlockByNumber(rpcRequest, {
-          blockNumber,
-          includeTransactions: false,
-        });
-        setLastBlockTimestamp(new Date(Number(block.timestamp) * 1000));
-      } catch (e) {
-        console.error("Failed to get block details:", e);
-      }
-    })();
-  }, [rpcRequest, blockNumber]);
+  const ethBlockQuery = useQuery({
+    queryKey: ["block_timestamp", chainId, blockNumber],
+    // keep the previous data while fetching new data
+    keepPreviousData: true,
+    queryFn: async () => {
+      const rpcRequest = getRpcClient({
+        client: thirdwebClient,
+        chain: defineChain(chainId),
+      });
+      const block = await eth_getBlockByNumber(rpcRequest, {
+        blockNumber,
+        includeTransactions: false,
+      });
+      return new Date(Number(block.timestamp) * 1000);
+    },
+  });
 
-  if (!lastBlockTimestamp) {
+  if (!ethBlockQuery.data) {
     return null;
   }
 
   return (
     <Card bgColor="backgroundHighlight">
-      <Text>{format(lastBlockTimestamp, "PP pp z")}</Text>
+      <Text>{format(ethBlockQuery.data, "PP pp z")}</Text>
     </Card>
   );
 };
@@ -290,8 +371,8 @@ const RemoveModal = ({
               <FormControl>
                 <FormLabel>Chain</FormLabel>
                 <Flex align="center" gap={2}>
-                  <ChainIcon size={12} ipfsSrc={chain.icon?.url} />
-                  <Text>{chain.name}</Text>
+                  <ChainIcon size={12} ipfsSrc={chain?.icon?.url} />
+                  <Text>{chain?.name ?? "N/A"}</Text>
                 </Flex>
               </FormControl>
 
@@ -308,6 +389,26 @@ const RemoveModal = ({
                   <Text>{contractSubscription.webhook.url}</Text>
                 ) : (
                   <Text fontStyle="italic">N/A</Text>
+                )}
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Filters</FormLabel>
+                {contractSubscription.processEventLogs && (
+                  <Text>
+                    Logs:{" "}
+                    {contractSubscription.filterEvents.length === 0
+                      ? "All"
+                      : contractSubscription.filterEvents.join(", ")}
+                  </Text>
+                )}
+                {contractSubscription.processTransactionReceipts && (
+                  <Text>
+                    Receipts:{" "}
+                    {contractSubscription.filterFunctions.length === 0
+                      ? "All"
+                      : contractSubscription.filterFunctions.join(", ")}
+                  </Text>
                 )}
               </FormControl>
             </Card>

@@ -82,6 +82,21 @@ export const SetEditChainContext = createContext<
   ((chain: Chain | undefined) => void) | undefined
 >(undefined);
 
+const replaceRpcsWithDevUrl = (chains: Chain[]) => {
+  if (isProd) {
+    return chains;
+  }
+
+  return chains.map((chn) => {
+    return {
+      ...chn,
+      rpc: chn.rpc.map((rpc) =>
+        rpc.replace("rpc.thirdweb.com", "rpc.thirdweb-dev.com"),
+      ),
+    };
+  });
+};
+
 /**
  * if no networks are configured by the user, return the defaultChains
  */
@@ -114,6 +129,8 @@ export function ChainsProvider(props: { children: React.ReactNode }) {
   }, []);
 
   // save recently used chains to storage
+  // FIXME: probably want to move this to backend (similar to favorites)
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -133,6 +150,8 @@ export function ChainsProvider(props: { children: React.ReactNode }) {
     useAllChainsData();
 
   // get recently used chains from stroage
+  // FIXME: probably want to move this to backend (similar to favorites)
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (!isSupportedChainsReady) {
       return;
@@ -187,22 +206,9 @@ export function ChainsProvider(props: { children: React.ReactNode }) {
     [applyOverrides],
   );
 
-  const replaceRpcsWithDevUrl = useCallback((chains: Chain[]) => {
-    if (isProd) {
-      return chains;
-    }
-
-    return chains.map((chn) => {
-      return {
-        ...chn,
-        rpc: chn.rpc.map((rpc) =>
-          rpc.replace("rpc.thirdweb.com", "rpc.thirdweb-dev.com"),
-        ),
-      };
-    });
-  }, []);
-
   // create supported chains and modified chains on mount
+  // FIXME: this should be computed not via setState
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     if (allChains.length === 0) {
       return;
@@ -236,7 +242,6 @@ export function ChainsProvider(props: { children: React.ReactNode }) {
     applyModificationsToSupportedChains,
     applyOverrides,
     supportedChains,
-    replaceRpcsWithDevUrl,
   ]);
 
   const modifyChain = useCallback(
@@ -283,7 +288,10 @@ export function ChainsProvider(props: { children: React.ReactNode }) {
   );
 
   return (
-    <SupportedChainsContext.Provider value={supportedChains}>
+    <SupportedChainsContext.Provider
+      // always run this again
+      value={replaceRpcsWithDevUrl(supportedChains)}
+    >
       <SupportedChainsReadyContext.Provider value={isSupportedChainsReady}>
         <ModifiedChainsContext.Provider value={modifiedChains}>
           <ModifyChainContext.Provider value={modifyChain}>
